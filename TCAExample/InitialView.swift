@@ -11,10 +11,15 @@ import ComposableArchitecture
 
 struct Initial: ReducerProtocol {
     struct State: Equatable {
+        static func == (lhs: Initial.State, rhs: Initial.State) -> Bool {
+            return false
+        }
+        
         var isNavigationActive = false
         var email = ""
         var password = ""
         var desnitationState: Destination.State?
+        var alert: AlertState<Action>?
     }
     
     enum Action {
@@ -22,12 +27,12 @@ struct Initial: ReducerProtocol {
         case setNavigation(isActive: Bool)
         case emailTextChanged(String)
         case passwordTextChanged(String)
+        case alertDismissed
     }
     
     private enum CancelID { }
     
-    var body: some ReducerProtocol<State, Action> {
-        Reduce { state, action in
+    func reduce(into state: inout State, action: Action) -> EffectTask<Action> {
             switch action {
             case .optionalState:
                 return .none
@@ -35,8 +40,30 @@ struct Initial: ReducerProtocol {
             case .setNavigation(isActive: true):
                 if !state.email.isEmpty && !state.password.isEmpty {
                     state.isNavigationActive = true
+                    state.desnitationState = Destination.State()
+                    
+                } else if state.email.isEmpty {
+                    state.alert = AlertState {
+                        TextState("알림")
+                    } actions: {
+                        ButtonState(role: .none) {
+                            TextState("확인")
+                        }
+                    } message: {
+                        TextState("이메일을 입력해주세요")
+                    }
+                    
+                } else if state.password.isEmpty {
+                    state.alert = AlertState {
+                        TextState("알림")
+                    } actions: {
+                        ButtonState(role: .cancel) {
+                            TextState("확인")
+                        }
+                    } message: {
+                        TextState("비밀번호를 입력해주세요")
+                    }
                 }
-                state.desnitationState = Destination.State()
                 return .none
                 
             case .setNavigation(isActive: false):
@@ -51,12 +78,12 @@ struct Initial: ReducerProtocol {
             case let .passwordTextChanged(text):
                 state.password = text
                 return .none
+                
+            case .alertDismissed:
+                state.alert = nil
+                return .none
             }
         }
-        .ifLet(\.desnitationState, action: /Action.optionalState) {
-            Destination()
-        }
-    }
 }
 
 struct InitialView: View {
@@ -87,6 +114,7 @@ struct InitialView: View {
                 }
             }
             .navigationViewStyle(.stack)
+            .alert(store.scope(state: \.alert), dismiss: .alertDismissed)
         }
     }
 }
